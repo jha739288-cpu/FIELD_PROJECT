@@ -1,0 +1,26 @@
+# Test profile: H2 in-memory (Oracle compatibility mode). No real database needed.
+spring:
+  datasource:
+    url: jdbc:h2:mem:labmarket_test;MODE=Oracle;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: ci-test-secret-min-32-chars-long-xxxxxxxx
+    expiration-ms: 3600000
+  overdue:
+    # The scheduler never runs in tests: detection is invoked explicitly.
+    scheduler-enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

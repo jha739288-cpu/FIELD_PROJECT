@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <!-- Structured console logging: UTC timestamp, level, thread, trace id, logger, message.
+       Switch the encoder to LogstashEncoder later for JSON logs without touching code. -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX,UTC} %-5level [%thread] %logger{36} trace=%X{traceId:-} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="com.labmarket" level="INFO"/>
+  <logger name="org.hibernate.SQL" level="WARN"/>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>

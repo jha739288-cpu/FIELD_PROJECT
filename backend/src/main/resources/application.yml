@@ -1,0 +1,68 @@
+# Shared defaults. Datasource lives in application-dev.yml / application-prod.yml.
+# Activate with SPRING_PROFILES_ACTIVE=dev|prod|test (default: dev).
+spring:
+  application:
+    name: labmarket-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  jpa:
+    hibernate:
+      # Schema is managed by Flyway, never auto-created — so the app
+      # starts cleanly even before business tables exist.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+
+# All REST endpoints live under /api/v1 (see docs/api-standards.md).
+# /api/health is the only unauthenticated business endpoint.
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-to-a-256-bit-secret-min-32-chars-long-xxxx}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+  overdue:
+    # Overdue sweep interval. Disabled in tests (scheduler-enabled: false).
+    check-interval-ms: ${OVERDUE_CHECK_INTERVAL_MS:300000}
+    scheduler-enabled: ${OVERDUE_SCHEDULER_ENABLED:true}
+  prediction:
+    lookback-days: ${PREDICTION_LOOKBACK_DAYS:28}
+    default-method: ${PREDICTION_DEFAULT_METHOD:empirical}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: labmarket-backend
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  config: classpath:logback-spring.xml
+  level:
+    com.labmarket: INFO
+    org.hibernate.SQL: WARN

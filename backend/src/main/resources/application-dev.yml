@@ -1,0 +1,16 @@
+# Development profile: local Oracle XE with safe placeholder defaults.
+# Override with DB_URL / DB_USERNAME / DB_PASSWORD as needed.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:oracle:thin:@localhost:1521/XEPDB1}
+    username: ${DB_USERNAME:labmarket}
+    password: ${DB_PASSWORD:change-me-in-dev}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      maximum-pool-size: 5
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.labmarket: DEBUG

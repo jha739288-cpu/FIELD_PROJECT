@@ -1,0 +1,99 @@
+name: ci
+
+# Backend unit/integration tests run on H2 (no Docker needed) so they stay fast
+# and deterministic. Oracle compatibility is proven separately by the
+# oracle-migration job (Flyway V1..latest on a real XE service), and image
+# builds by docker-build. No secrets live in this file: the Oracle service uses
+# throwaway CI-only credentials, and the app test profile uses its own dummy JWT.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build + test backend (H2)
+        working-directory: backend
+        env:
+          SPRING_PROFILES_ACTIVE: test
+        run: mvn -B verify
+      - name: Upload surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: backend/target/surefire-reports/
+          retention-days: 7
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Audit (critical only)
+        # Dev-toolchain findings (vite/esbuild, react-router) require breaking
+        # majors and are documented; only critical findings fail this gate.
+        working-directory: frontend
+        run: npm audit --audit-level=critical
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  oracle-migration:
+    runs-on: ubuntu-latest
+    services:
+      oracle:
+        image: gvenzl/oracle-xe:21-slim
+        env:
+          ORACLE_PASSWORD: ci-oracle-pw
+          ORACLE_DATABASE: XEPDB1
+          APP_USER: labmarket_ci
+          APP_USER_PASSWORD: ci-app-pw
+        ports:
+          - 1521:1521
+        options: >-
+          --health-cmd "echo 'WHENEVER SQLERROR EXIT 1; SELECT 1 FROM DUAL;' | sqlplus -S system/ci-oracle-pw@XEPDB1"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 30
+          --health-start-period 120s
+    steps:
+      - uses: actions/checkout@v4
+      - name: Flyway migrate V1..latest on real Oracle XE
+        # Official Flyway image, ephemeral CI database, dummy credentials.
+        run: >
+          docker run --rm --network host
+          -v "${{ github.workspace }}/backend/src/main/resources/db/migration:/flyway/sql:ro"
+          flyway/flyway:10.21.0
+          -url="jdbc:oracle:thin:@localhost:1521/XEPDB1"
+          -user="labmarket_ci" -password="ci-app-pw"
+          -locations="filesystem:/flyway/sql"
+          -connectRetries=10
+          migrate
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images (no push)
+        run: docker compose build backend frontend

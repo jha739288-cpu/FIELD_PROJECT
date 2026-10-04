@@ -1,0 +1,77 @@
+# LabMarket reproducible stack: React (nginx) -> Spring Boot (prod profile) -> Oracle XE.
+#
+# Oracle XE decision (see docs/deployment/docker.md): Oracle XE itself is free for
+# development/demo use (OTN license); this file uses the widely-used community
+# image gvenzl/oracle-xe:21-slim. If your environment cannot pull it, run Oracle
+# XE 21c locally instead and point DB_URL at it (two-part deployment, same file).
+#
+# No passwords live in this file: everything secret comes from .env
+# (see .env.example). The application stays Oracle-only; no PostgreSQL anywhere.
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: labmarket-oracle
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:?set ORACLE_PASSWORD in .env}
+      ORACLE_DATABASE: ${ORACLE_DATABASE:-XEPDB1}
+      APP_USER: ${DB_USERNAME:?set DB_USERNAME in .env}
+      APP_USER_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    ports:
+      - "1521:1521"
+    volumes:
+      - oradata:/opt/oracle/oradata
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "echo 'WHENEVER SQLERROR EXIT 1; SELECT 1 FROM DUAL;' | sqlplus -S system/$${ORACLE_PASSWORD}@$${ORACLE_DATABASE:-XEPDB1}",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 180s # first XE boot (data files) is slow
+
+  backend:
+    build: ./backend
+    container_name: labmarket-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:oracle:thin:@oracle:1521/${ORACLE_DATABASE:-XEPDB1}
+      DB_USERNAME: ${DB_USERNAME:?set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (min 32 chars) in .env}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+    depends_on:
+      oracle:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/v1/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s # JVM + Flyway migrations on first boot
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${FRONTEND_API_URL:-http://localhost:8080/api/v1}
+    container_name: labmarket-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:8080"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  oradata:
