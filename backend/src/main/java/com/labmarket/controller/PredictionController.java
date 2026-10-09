@@ -43,7 +43,7 @@ public class PredictionController {
   }
 
   @GetMapping("/equipment/{equipmentId}/evaluation")
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
   @Operation(summary = "Backtest past slots as-of their start vs what happened (staff/admin)")
   public ResponseEntity<EvaluationResponse> evaluate(
       @PathVariable Long equipmentId,

@@ -1,6 +1,6 @@
 // Shared DTO types mirroring the Spring Boot API (never invented client-side).
 
-export type Role = 'STUDENT' | 'LAB_STAFF' | 'ADMIN';
+export type Role = 'ADMIN' | 'USER' | 'VENDOR';
 
 export interface User {
   id: number;
@@ -24,6 +24,7 @@ export interface RegisterPayload {
   email: string;
   password: string;
   fullName?: string;
+  role?: 'USER' | 'VENDOR';
 }
 
 export interface LoginPayload {
@@ -52,6 +53,12 @@ export interface Equipment {
   manufacturer: string | null;
   model: string | null;
   laboratory: string | null;
+  imageUrl: string | null;
+  specifications: string | null;
+  pricePerHour: number | null;
+  quantity: number | null;
+  usageInstructions: string | null;
+  safetyInfo: string | null;
   condition: EquipmentCondition;
   currentStatus: EquipmentStatus;
   maintenanceStatus: MaintenanceStatus;
@@ -68,6 +75,12 @@ export interface EquipmentCreatePayload {
   manufacturer?: string;
   model?: string;
   laboratory?: string;
+  imageUrl?: string;
+  specifications?: string;
+  pricePerHour?: number | null;
+  quantity?: number | null;
+  usageInstructions?: string;
+  safetyInfo?: string;
   condition?: EquipmentCondition;
   currentStatus?: EquipmentStatus;
   maintenanceStatus?: MaintenanceStatus;
@@ -233,6 +246,148 @@ export interface UsageRecord {
 }
 
 export type PredictedStatus = 'AVAILABLE' | 'LIMITED' | 'UNAVAILABLE';
+
+export interface UserAdmin {
+  id: number;
+  username: string;
+  email: string;
+  fullName: string | null;
+  enabled: boolean;
+  roles: Role[];
+  createdAt: string;
+  bookingCount: number;
+}
+
+export interface VendorSummary {
+  id: number;
+  username: string;
+  email: string;
+  fullName: string | null;
+  enabled: boolean;
+  createdAt: string;
+  equipmentCount: number;
+  bookingCount: number;
+}
+
+export interface AdminOverview {
+  totalUsers: number;
+  usersByRole: Record<string, number>;
+  equipmentByStatus: Record<string, number>;
+  bookingsByStatus: Record<string, number>;
+  openAlerts: number;
+  recentUsers: Array<{ id: number; username: string; email: string; roles: Role[]; createdAt: string }>;
+  recentBookings: Array<{ id: number; equipmentCode: string; username: string; status: string; startTime: string }>;
+  recentEquipment: Array<{ id: number; equipmentCode: string; name: string; status: string }>;
+}
+
+export interface VendorDashboard {
+  username: string;
+  totalEquipment: number;
+  equipmentByStatus: Record<string, number>;
+  totalBookings: number;
+  bookingsByStatus: Record<string, number>;
+  completedSessions: number;
+  usageSeconds: number;
+  usageHours: number;
+  recentBookings: Array<{ id: number; equipmentCode: string; username: string; status: string; startTime: string }>;
+}
+
+export type BookingStatus =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'CHECKED_IN'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'OVERDUE'
+  | 'REJECTED';
+
+export interface Booking {
+  id: number;
+  equipmentId: number;
+  equipmentCode: string;
+  equipmentName: string;
+  userId: number;
+  username: string;
+  startTime: string;
+  endTime: string;
+  status: BookingStatus;
+  purpose: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BookingCreatePayload {
+  equipmentId: number;
+  startTime: string;
+  endTime: string;
+  purpose: string;
+}
+
+export interface TimeSlot {
+  startTime: string;
+  endTime: string;
+}
+
+export interface BookedPeriod extends TimeSlot {
+  bookingId: number;
+  status: BookingStatus;
+}
+
+export interface BookingSlot extends TimeSlot {
+  id: number;
+  status: BookingStatus;
+  purpose: string | null;
+  username: string | null;
+}
+
+export interface EquipmentSchedule {
+  equipmentId: number;
+  equipmentCode: string;
+  equipmentName: string;
+  currentStatus: EquipmentStatus;
+  maintenanceStatus: string;
+  from: string;
+  to: string;
+  slots: BookingSlot[];
+}
+
+export interface Availability {
+  equipmentId: number;
+  equipmentCode: string;
+  equipmentName: string;
+  currentStatus: EquipmentStatus;
+  maintenanceStatus: string;
+  bookable: boolean;
+  from: string;
+  to: string;
+  bookedPeriods: BookedPeriod[];
+  pendingPeriods: TimeSlot[];
+  freePeriods: TimeSlot[];
+  maintenance: boolean;
+  message: string | null;
+}
+
+export interface CalendarResponse {
+  from: string;
+  to: string;
+  schedules: EquipmentSchedule[];
+}
+
+export type AlertStatus = 'OPEN' | 'RESOLVED';
+
+export interface Alert {
+  id: number;
+  type: string;
+  status: AlertStatus;
+  bookingId: number;
+  equipmentId: number;
+  equipmentCode: string;
+  message: string;
+  resolutionNote: string | null;
+  resolvedByUsername: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
 
 export interface PredictionFactor {
   name: string;

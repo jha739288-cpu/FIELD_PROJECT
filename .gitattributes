@@ -1,0 +1,17 @@
+# Flyway checksums file bytes: line endings must never drift after a
+# migration is applied anywhere. Force LF for all text sources so Windows
+# checkouts cannot silently rewrite applied migrations (core.autocrlf stays
+# for anything not listed here).
+*.sql text eol=lf
+*.java text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.csv text eol=lf

@@ -51,8 +51,8 @@ class PredictionControllerTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    Role student = roles.save(new Role("STUDENT", "Student"));
-    Role staff = roles.save(new Role("LAB_STAFF", "Lab staff"));
+    Role student = roles.save(new Role("USER", "Student"));
+    Role staff = roles.save(new Role("VENDOR", "Lab staff"));
     roles.save(new Role("ADMIN", "Administrator"));
     createUser("stuA", "stuA@example.com", student);
     createUser("stf", "stf@example.com", staff);
@@ -64,14 +64,17 @@ class PredictionControllerTest {
 
   @Test
   void futureBookingForcesUnavailable() throws Exception {
-    // Confirmed [now+2h, now+4h]: every slot inside is UNAVAILABLE with p=0.
-    long id = book(tokenA, 2, 4);
+    // Confirmed [base+2h, base+4h]: every slot inside is UNAVAILABLE with p=0.
+    // Single base instant: two independent now() calls could straddle a clock
+    // tick and append a sliver slot (flaky hasSize).
+    Instant base = Instant.now();
+    long id = bookAt(tokenA, base.plusSeconds(2 * 3600), base.plusSeconds(4 * 3600));
     confirm(id);
 
     mvc.perform(
             get("/api/v1/predictions/equipment/" + equipmentId)
-                .param("from", hours(2))
-                .param("to", hours(4))
+                .param("from", base.plusSeconds(2 * 3600).toString())
+                .param("to", base.plusSeconds(4 * 3600).toString())
                 .param("slotMinutes", "60")
                 .header("Authorization", "Bearer " + tokenA))
         .andExpect(status().isOk())
@@ -189,6 +192,10 @@ class PredictionControllerTest {
 
   private long book(String token, long fromH, long toH) throws Exception {
     Instant start = Instant.now().plusSeconds(fromH * 3600);
+    return bookAt(token, start, start.plusSeconds((toH - fromH) * 3600));
+  }
+
+  private long bookAt(String token, Instant start, Instant end) throws Exception {
     String body =
         mvc.perform(
                 post("/api/v1/bookings")
@@ -199,7 +206,7 @@ class PredictionControllerTest {
                             Map.of(
                                 "equipmentId", equipmentId,
                                 "startTime", start.toString(),
-                                "endTime", start.plusSeconds((toH - fromH) * 3600).toString(),
+                                "endTime", end.toString(),
                                 "purpose", "pred lab"))))
             .andExpect(status().isCreated())
             .andReturn()

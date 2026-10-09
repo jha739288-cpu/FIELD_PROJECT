@@ -1,5 +1,6 @@
 package com.labmarket.service;
 
+import com.labmarket.dto.AdminOverviewResponse;
 import com.labmarket.dto.BookingAnalyticsResponse;
 import com.labmarket.dto.EquipmentDashboardResponse;
 import com.labmarket.dto.EquipmentDashboardResponse.BookingBriefResponse;
@@ -10,6 +11,8 @@ import com.labmarket.dto.UsageTrendResponse;
 import com.labmarket.dto.UsageTrendResponse.TrendPoint;
 import com.labmarket.dto.UtilizationResponse;
 import com.labmarket.dto.UtilizationResponse.ItemUtilization;
+import com.labmarket.dto.VendorDashboardResponse;
+import com.labmarket.dto.VendorDashboardResponse.BookingBrief;
 import com.labmarket.entity.AlertStatus;
 import com.labmarket.entity.AlertType;
 import com.labmarket.entity.Booking;
@@ -17,6 +20,7 @@ import com.labmarket.entity.BookingStatus;
 import com.labmarket.entity.Equipment;
 import com.labmarket.entity.EquipmentStatus;
 import com.labmarket.entity.MaintenanceStatus;
+import com.labmarket.entity.Role;
 import com.labmarket.entity.SensorEvent;
 import com.labmarket.entity.SensorStatus;
 import com.labmarket.entity.UsageSession;
@@ -41,6 +45,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -278,6 +284,103 @@ public class DashboardService {
         from,
         to,
         to);
+  }
+
+  /** Platform overview for admins: real counts plus the five most recent rows. */
+  @Transactional(readOnly = true)
+  public AdminOverviewResponse adminOverview() {
+    Map<String, Long> usersByRole = new LinkedHashMap<>();
+    usersByRole.put("ADMIN", users.countByRoleName("ADMIN"));
+    usersByRole.put("USER", users.countByRoleName("USER"));
+    usersByRole.put("VENDOR", users.countByRoleName("VENDOR"));
+    Map<String, Long> equipmentByStatus = new LinkedHashMap<>();
+    for (EquipmentStatus s : EquipmentStatus.values()) {
+      equipmentByStatus.put(s.name(), equipment.countByCurrentStatus(s));
+    }
+    Map<String, Long> bookingsByStatus = new LinkedHashMap<>();
+    for (BookingStatus s : BookingStatus.values()) {
+      bookingsByStatus.put(s.name(), bookings.countByStatus(s));
+    }
+    PageRequest recent = PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
+    List<AdminOverviewResponse.UserBrief> recentUsers =
+        users.findAll(recent).getContent().stream()
+            .map(
+                u ->
+                    new AdminOverviewResponse.UserBrief(
+                        u.getId(), u.getUsername(), u.getEmail(),
+                        u.getRoles().stream().map(Role::getName).sorted().toList(),
+                        u.getCreatedAt()))
+            .toList();
+    List<AdminOverviewResponse.BookingBrief> recentBookings =
+        bookings.search(null, null, recent).getContent().stream()
+            .map(
+                b ->
+                    new AdminOverviewResponse.BookingBrief(
+                        b.getId(), b.getEquipment().getEquipmentCode(),
+                        b.getOwner().getUsername(), b.getStatus().name(), b.getStartTime()))
+            .toList();
+    List<AdminOverviewResponse.EquipmentBrief> recentEquipment =
+        equipment.findAll(recent).getContent().stream()
+            .map(
+                e ->
+                    new AdminOverviewResponse.EquipmentBrief(
+                        e.getId(), e.getEquipmentCode(), e.getName(),
+                        e.getCurrentStatus().name()))
+            .toList();
+    return new AdminOverviewResponse(
+        users.count(),
+        usersByRole,
+        equipmentByStatus,
+        bookingsByStatus,
+        alerts.countByTypeAndStatus(AlertType.OVERDUE, AlertStatus.OPEN),
+        recentUsers,
+        recentBookings,
+        recentEquipment);
+  }
+
+  /** A vendor's own marketplace numbers (inventory, demand, utilization). */
+  @Transactional(readOnly = true)
+  public VendorDashboardResponse vendorSummary(String username) {
+    User viewer =
+        users
+            .findByUsername(username)
+            .orElseThrow(() -> new AccessDeniedException("Access denied"));
+    Long ownerId = viewer.getId();
+    List<Equipment> items = equipment.findByCreatedById(ownerId, Pageable.unpaged()).getContent();
+    Map<String, Long> equipmentByStatus = new LinkedHashMap<>();
+    for (Equipment item : items) {
+      equipmentByStatus.merge(item.getCurrentStatus().name(), 1L, Long::sum);
+    }
+    Map<String, Long> bookingsByStatus = new LinkedHashMap<>();
+    long totalBookings = 0;
+    for (Object[] row : bookings.countByStatusForOwner(ownerId)) {
+      BookingStatus status = (BookingStatus) row[0];
+      long count = (Long) row[1];
+      bookingsByStatus.put(status.name(), count);
+      totalBookings += count;
+    }
+    long completedSessions = sessions.countCompletedForOwner(ownerId);
+    long usageSeconds = sessions.totalCompletedSecondsForOwner(ownerId);
+    List<VendorDashboardResponse.BookingBrief> recent =
+        bookings.findByEquipmentOwnerId(ownerId, PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "createdAt")))
+            .getContent().stream()
+            .map(
+                b ->
+                    new VendorDashboardResponse.BookingBrief(
+                        b.getId(), b.getEquipment().getEquipmentCode(),
+                        b.getOwner().getUsername(), b.getStatus().name(),
+                        b.getStartTime().toString()))
+            .toList();
+    return new VendorDashboardResponse(
+        username,
+        items.size(),
+        equipmentByStatus,
+        totalBookings,
+        bookingsByStatus,
+        completedSessions,
+        usageSeconds,
+        Math.round(usageSeconds / 36.0) / 100.0,
+        recent);
   }
 
   /** Booking analytics over bookings created in the window (UTC day buckets). */

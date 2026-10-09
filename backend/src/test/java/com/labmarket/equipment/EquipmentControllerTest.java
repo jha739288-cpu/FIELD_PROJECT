@@ -45,8 +45,8 @@ class EquipmentControllerTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    Role student = roles.save(new Role("STUDENT", "Student"));
-    Role staff = roles.save(new Role("LAB_STAFF", "Lab staff"));
+    Role student = roles.save(new Role("USER", "Student"));
+    Role staff = roles.save(new Role("VENDOR", "Lab staff"));
     roles.save(new Role("ADMIN", "Administrator"));
     createUser("stu", "stu@example.com", student);
     createUser("stf", "stf@example.com", staff);
@@ -204,6 +204,20 @@ class EquipmentControllerTest {
                 .header("Authorization", "Bearer " + studentToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalElements").value(1));
+
+    // laboratory filter
+    mvc.perform(
+            get("/api/v1/equipment")
+                .param("laboratory", "Lab A")
+                .header("Authorization", "Bearer " + studentToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalElements").value(3));
+    mvc.perform(
+            get("/api/v1/equipment")
+                .param("laboratory", "Nowhere Lab")
+                .header("Authorization", "Bearer " + studentToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalElements").value(0));
 
     // invalid enum value
     mvc.perform(

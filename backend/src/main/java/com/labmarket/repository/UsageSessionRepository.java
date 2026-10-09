@@ -86,4 +86,17 @@ public interface UsageSessionRepository extends JpaRepository<UsageSession, Long
       @Param("from") Instant from,
       @Param("to") Instant to,
       Pageable pageable);
+
+  /** Completed usage seconds on one vendor's equipment (utilization stat). */
+  @Query(
+      """
+      SELECT COALESCE(SUM(s.durationSeconds), 0) FROM UsageSession s
+      WHERE s.equipment.createdBy.id = :ownerId
+        AND s.status = com.labmarket.entity.UsageStatus.COMPLETED
+      """)
+  long totalCompletedSecondsForOwner(@Param("ownerId") Long ownerId);
+
+  @Query(
+      "SELECT COUNT(s) FROM UsageSession s WHERE s.equipment.createdBy.id = :ownerId AND s.status = com.labmarket.entity.UsageStatus.COMPLETED")
+  long countCompletedForOwner(@Param("ownerId") Long ownerId);
 }

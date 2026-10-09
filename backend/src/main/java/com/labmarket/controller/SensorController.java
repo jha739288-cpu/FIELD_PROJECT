@@ -47,7 +47,7 @@ public class SensorController {
   }
 
   @GetMapping("/events")
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
   @Operation(summary = "Recent events for one equipment item (staff/admin)")
   public ResponseEntity<Page<SensorEventResponse>> history(
       @RequestParam String equipmentCode,

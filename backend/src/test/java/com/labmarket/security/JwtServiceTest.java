@@ -17,16 +17,16 @@ class JwtServiceTest {
 
   @Test
   void generatedTokenValidatesAndCarriesSubjectAndRoles() {
-    String token = jwt.generateToken("alice", List.of("STUDENT"));
+    String token = jwt.generateToken("alice", List.of("USER"));
 
     assertTrue(jwt.isValid(token));
     assertEquals("alice", jwt.extractUsername(token));
-    assertEquals(List.of("STUDENT"), jwt.extractRoles(token));
+    assertEquals(List.of("USER"), jwt.extractRoles(token));
   }
 
   @Test
   void tamperedTokenFailsValidation() {
-    String token = jwt.generateToken("alice", List.of("STUDENT"));
+    String token = jwt.generateToken("alice", List.of("USER"));
     String tampered = token.substring(0, token.length() - 2) + "xx";
 
     assertFalse(jwt.isValid(tampered));
@@ -35,7 +35,7 @@ class JwtServiceTest {
   @Test
   void tokenSignedWithAnotherSecretFailsValidation() {
     JwtService other = new JwtService(new JwtProperties("a-different-32-char-secret-zzzzzz", 3_600_000));
-    String foreign = other.generateToken("alice", List.of("STUDENT"));
+    String foreign = other.generateToken("alice", List.of("USER"));
 
     assertFalse(jwt.isValid(foreign));
   }
@@ -44,7 +44,7 @@ class JwtServiceTest {
   void expiredTokenFailsValidation() {
     JwtService expired =
         new JwtService(new JwtProperties(SECRET, -1_000)); // already expired at issue time
-    String token = expired.generateToken("alice", List.of("STUDENT"));
+    String token = expired.generateToken("alice", List.of("USER"));
 
     assertFalse(jwt.isValid(token));
   }

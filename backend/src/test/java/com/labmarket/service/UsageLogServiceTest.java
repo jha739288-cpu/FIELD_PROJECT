@@ -53,7 +53,7 @@ class UsageLogServiceTest {
 
   @Test
   void studentListIsForcedToOwnId() {
-    User stu = user(1L, "stu", "STUDENT");
+    User stu = user(1L, "stu", "USER");
     when(users.findByUsername("stu")).thenReturn(Optional.of(stu));
     when(sessions.search(any(), any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(new PageImpl<>(List.of()));
@@ -66,7 +66,7 @@ class UsageLogServiceTest {
 
   @Test
   void studentFilteringByAnotherUserIsForbidden() {
-    User stu = user(1L, "stu", "STUDENT");
+    User stu = user(1L, "stu", "USER");
     when(users.findByUsername("stu")).thenReturn(Optional.of(stu));
 
     assertThrows(
@@ -77,7 +77,7 @@ class UsageLogServiceTest {
 
   @Test
   void staffListPassesAllFiltersThrough() {
-    User staff = user(2L, "stf", "LAB_STAFF");
+    User staff = user(2L, "stf", "VENDOR");
     when(users.findByUsername("stf")).thenReturn(Optional.of(staff));
     when(sessions.search(any(), any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(new PageImpl<>(List.of()));
@@ -94,8 +94,8 @@ class UsageLogServiceTest {
 
   @Test
   void getOtherUsersRecordIsForbidden() {
-    User stuB = user(2L, "stuB", "STUDENT");
-    UsageSession s = session(10L, user(1L, "stuA", "STUDENT"));
+    User stuB = user(2L, "stuB", "USER");
+    UsageSession s = session(10L, user(1L, "stuA", "USER"));
     when(users.findByUsername("stuB")).thenReturn(Optional.of(stuB));
     when(sessions.findById(10L)).thenReturn(Optional.of(s));
 
@@ -104,7 +104,7 @@ class UsageLogServiceTest {
 
   @Test
   void getMissingIsNotFound() {
-    when(users.findByUsername("stf")).thenReturn(Optional.of(user(2L, "stf", "LAB_STAFF")));
+    when(users.findByUsername("stf")).thenReturn(Optional.of(user(2L, "stf", "VENDOR")));
     when(sessions.findById(99L)).thenReturn(Optional.empty());
 
     assertThrows(ResourceNotFoundException.class, () -> service.get("stf", 99L));
@@ -114,7 +114,7 @@ class UsageLogServiceTest {
   void manualComputesDurationAuditsTwiceAndIsCompleted() {
     Equipment item = new Equipment();
     item.setEquipmentCode("OSC-001");
-    User stu = user(1L, "stu", "STUDENT");
+    User stu = user(1L, "stu", "USER");
     Instant start = Instant.now().minusSeconds(3700);
     Instant end = Instant.now().minusSeconds(100);
     when(equipment.findById(7L)).thenReturn(Optional.of(item));

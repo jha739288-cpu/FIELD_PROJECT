@@ -49,8 +49,8 @@ class UsageLogControllerTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    Role student = roles.save(new Role("STUDENT", "Student"));
-    Role staff = roles.save(new Role("LAB_STAFF", "Lab staff"));
+    Role student = roles.save(new Role("USER", "Student"));
+    Role staff = roles.save(new Role("VENDOR", "Lab staff"));
     roles.save(new Role("ADMIN", "Administrator"));
     userIdA = createUser("stuA", "stuA@example.com", student);
     createUser("stuB", "stuB@example.com", student);

@@ -85,7 +85,7 @@ public class BookingController {
   }
 
   @PutMapping("/{id}/confirm")
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
   @Operation(summary = "Confirm a PENDING booking (staff/admin; re-checks overlap)")
   public ResponseEntity<BookingResponse> confirm(
       @PathVariable Long id, Authentication authentication) {
@@ -93,7 +93,7 @@ public class BookingController {
   }
 
   @PutMapping("/{id}/reject")
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
   @Operation(summary = "Reject a PENDING booking (staff/admin)")
   public ResponseEntity<BookingResponse> reject(
       @PathVariable Long id, Authentication authentication) {

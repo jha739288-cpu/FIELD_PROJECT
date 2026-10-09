@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Dashboard API tests against real rows. Lab-wide endpoints require
- * LAB_STAFF/ADMIN (students get 403 and use {@code /my-summary}); exact counts,
+ * VENDOR/ADMIN (students get 403 and use {@code /my-summary}); exact counts,
  * exact utilization math, trend totals and the new analytics endpoints (H2, rollback).
  */
 @SpringBootTest
@@ -49,8 +49,8 @@ class DashboardControllerTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    Role student = roles.save(new Role("STUDENT", "Student"));
-    Role staff = roles.save(new Role("LAB_STAFF", "Lab staff"));
+    Role student = roles.save(new Role("USER", "Student"));
+    Role staff = roles.save(new Role("VENDOR", "Lab staff"));
     roles.save(new Role("ADMIN", "Administrator"));
     userIdA = createUser("stuA", "stuA@example.com", student);
     createUser("stf", "stf@example.com", staff);

@@ -5,7 +5,7 @@ package com.labmarket.entity;
  *
  * <ul>
  *   <li>PENDING — created by a student, awaiting staff decision.</li>
- *   <li>CONFIRMED / REJECTED — decided by LAB_STAFF or ADMIN.</li>
+ *   <li>CONFIRMED / REJECTED — decided by VENDOR or ADMIN.</li>
  *   <li>CANCELLED — by the owner (while PENDING/CONFIRMED) or staff/admin.</li>
  *   <li>CHECKED_IN / COMPLETED / OVERDUE — owned by the QR and overdue modules (later).</li>
  * </ul>

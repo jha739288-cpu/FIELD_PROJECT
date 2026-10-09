@@ -81,7 +81,7 @@ public class UsageLogController {
   }
 
   @PostMapping
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
   @Operation(summary = "Record historical MANUAL usage (staff/admin; duration computed)")
   public ResponseEntity<UsageLogResponse> createManual(
       @Valid @RequestBody ManualUsageRequest request, Authentication authentication) {

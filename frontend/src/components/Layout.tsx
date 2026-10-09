@@ -13,19 +13,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="app">
       <header className="topbar">
-        <Link to="/" className="brand">
+        <Link to="/" className="brand" aria-label="LabMarket home">
+          <span className="logo-mark" aria-hidden>
+            ⚗
+          </span>
           LabMarket
         </Link>
-        <nav className="nav">
+        <nav className="nav" aria-label="Primary">
+          <Link to="/equipment">Marketplace</Link>
+          <Link to="/calendar">Calendar</Link>
+          <Link to="/predict">Predictions</Link>
           {user ? (
             <>
-              <Link to="/equipment">Equipment</Link>
-              <Link to="/calendar">Calendar</Link>
               <Link to="/bookings">My bookings</Link>
-              {(user.roles.includes('LAB_STAFF') || user.roles.includes('ADMIN')) && (
-                <Link to="/staff">Staff</Link>
-              )}
-              {(user.roles.includes('LAB_STAFF') || user.roles.includes('ADMIN')) && (
+              {(user.roles.includes('VENDOR') || user.roles.includes('ADMIN')) && (
                 <Link to="/analytics">Analytics</Link>
               )}
               {user.roles.includes('ADMIN') && <Link to="/admin">Admin</Link>}
@@ -38,7 +39,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <>
               <Link to="/login">Login</Link>
               <Link to="/register" className="btn btn-primary">
-                Register
+                Get started
               </Link>
             </>
           )}

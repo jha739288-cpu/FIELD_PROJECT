@@ -11,16 +11,20 @@ export interface EquipmentQuery {
   q?: string;
   status?: EquipmentStatus | '';
   category?: string;
+  laboratory?: string;
+  mine?: boolean;
   page?: number;
   size?: number;
   sort?: string;
 }
 
 export async function listEquipment(query: EquipmentQuery): Promise<PagedResponse<Equipment>> {
-  const params: Record<string, string | number> = { page: query.page ?? 0, size: query.size ?? 12 };
+  const params: Record<string, string | number | boolean> = { page: query.page ?? 0, size: query.size ?? 12 };
   if (query.q) params.q = query.q;
   if (query.status) params.status = query.status;
   if (query.category) params.category = query.category;
+  if (query.laboratory) params.laboratory = query.laboratory;
+  if (query.mine) params.mine = true;
   if (query.sort) params.sort = query.sort;
   const { data } = await api.get<PagedResponse<Equipment>>('/equipment', { params });
   return data;

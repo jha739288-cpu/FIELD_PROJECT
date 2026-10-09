@@ -8,7 +8,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (payload: LoginPayload) => Promise<User>;
+  login: (payload: LoginPayload, rememberMe?: boolean) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<User>;
   logout: () => void;
   hasRole: (...roles: Role[]) => boolean;
@@ -18,14 +18,23 @@ const AuthContext = createContext<AuthState | null>(null);
 
 function homeFor(roles: Role[]): string {
   if (roles.includes('ADMIN')) return '/admin';
-  if (roles.includes('LAB_STAFF')) return '/staff';
+  if (roles.includes('VENDOR')) return '/vendor';
   return '/dashboard';
 }
 
 export { homeFor };
 
+function storedToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
+}
+
+function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [token, setToken] = useState<string | null>(storedToken);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,16 +48,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     apiMe()
       .then(setUser)
       .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
+        clearToken();
         setToken(null);
         setUser(null);
       })
       .finally(() => setLoading(false));
   }, [token]);
 
-  const login = useCallback(async (payload: LoginPayload) => {
+  const login = useCallback(async (payload: LoginPayload, rememberMe = true) => {
     const res = await apiLogin(payload);
-    localStorage.setItem(TOKEN_KEY, res.token);
+    // Remember me → persistent storage; otherwise the token dies with the tab.
+    (rememberMe ? localStorage : sessionStorage).setItem(TOKEN_KEY, res.token);
     setToken(res.token);
     const profile = await apiMe();
     setUser(profile);
@@ -65,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
+    clearToken();
     setToken(null);
     setUser(null);
   }, []);

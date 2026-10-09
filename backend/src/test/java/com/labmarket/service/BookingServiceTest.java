@@ -31,6 +31,7 @@ import java.util.Set;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -64,7 +65,7 @@ class BookingServiceTest {
   void createLocksEquipmentBeforeOverlapCheck() {
     Instant start = Instant.now().plusSeconds(3600);
     Instant end = start.plusSeconds(7200);
-    User owner = user("stu", "STUDENT");
+    User owner = user("stu", "USER");
     Equipment item = item(7L, "OSC-001");
     when(users.findByUsername("stu")).thenReturn(Optional.of(owner));
     when(equipment.findWithLockById(7L)).thenReturn(Optional.of(item));
@@ -84,7 +85,7 @@ class BookingServiceTest {
   void createOverlappingConfirmedBookingThrowsConflict() {
     Instant start = Instant.now().plusSeconds(3600);
     Instant end = start.plusSeconds(7200);
-    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "STUDENT")));
+    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "USER")));
     when(equipment.findWithLockById(7L)).thenReturn(Optional.of(item(7L, "OSC-001")));
     when(bookings.existsOverlap(any(), anyCollection(), any(), any())).thenReturn(true);
 
@@ -130,7 +131,7 @@ class BookingServiceTest {
     Instant end = start.plusSeconds(3600);
     Equipment broken = item(7L, "OSC-001");
     broken.setCurrentStatus(EquipmentStatus.MAINTENANCE);
-    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "STUDENT")));
+    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "USER")));
     when(equipment.findWithLockById(7L)).thenReturn(Optional.of(broken));
 
     assertThrows(
@@ -144,7 +145,7 @@ class BookingServiceTest {
     Instant end = start.plusSeconds(3600);
     Equipment retired = item(7L, "OSC-001");
     retired.setMaintenanceStatus(MaintenanceStatus.OUT_OF_SERVICE);
-    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "STUDENT")));
+    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "USER")));
     when(equipment.findWithLockById(7L)).thenReturn(Optional.of(retired));
 
     assertThrows(
@@ -155,7 +156,7 @@ class BookingServiceTest {
   @Test
   void createMissingEquipmentThrowsNotFound() {
     Instant start = Instant.now().plusSeconds(3600);
-    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "STUDENT")));
+    when(users.findByUsername("stu")).thenReturn(Optional.of(user("stu", "USER")));
     when(equipment.findWithLockById(77L)).thenReturn(Optional.empty());
 
     assertThrows(
@@ -168,7 +169,7 @@ class BookingServiceTest {
   @Test
   void getOtherUsersBookingThrowsForbidden() {
     Booking b = ownedBooking(1L, "stuA");
-    when(users.findByUsername("stuB")).thenReturn(Optional.of(user("stuB", "STUDENT")));
+    when(users.findByUsername("stuB")).thenReturn(Optional.of(user("stuB", "USER")));
     when(bookings.findById(1L)).thenReturn(Optional.of(b));
 
     assertThrows(AccessDeniedException.class, () -> service.get("stuB", 1L));
@@ -177,7 +178,7 @@ class BookingServiceTest {
   @Test
   void cancelByNonOwnerThrowsForbidden() {
     Booking b = ownedBooking(1L, "stuA");
-    when(users.findByUsername("stuB")).thenReturn(Optional.of(user("stuB", "STUDENT")));
+    when(users.findByUsername("stuB")).thenReturn(Optional.of(user("stuB", "USER")));
     when(bookings.findById(1L)).thenReturn(Optional.of(b));
 
     assertThrows(AccessDeniedException.class, () -> service.cancel("stuB", 1L));
@@ -187,7 +188,7 @@ class BookingServiceTest {
   void cancelCompletedThrowsConflict() {
     Booking b = ownedBooking(1L, "stuA");
     b.setStatus(BookingStatus.COMPLETED);
-    when(users.findByUsername("stuA")).thenReturn(Optional.of(user("stuA", "STUDENT")));
+    when(users.findByUsername("stuA")).thenReturn(Optional.of(user("stuA", "USER")));
     when(bookings.findById(1L)).thenReturn(Optional.of(b));
 
     assertThrows(ConflictException.class, () -> service.cancel("stuA", 1L));
@@ -198,6 +199,7 @@ class BookingServiceTest {
     Booking b = ownedBooking(1L, "stuA");
     Equipment item = item(7L, "OSC-001");
     b.setEquipment(item);
+    when(users.findByUsername("stf")).thenReturn(Optional.of(user("stf", "ADMIN")));
     when(bookings.findById(1L)).thenReturn(Optional.of(b));
     when(equipment.findWithLockById(7L)).thenReturn(Optional.of(item));
     when(bookings.existsOverlap(any(), anyCollection(), any(), any())).thenReturn(true);
@@ -209,6 +211,7 @@ class BookingServiceTest {
   void confirmNonPendingThrowsConflict() {
     Booking b = ownedBooking(1L, "stuA");
     b.setStatus(BookingStatus.CANCELLED);
+    when(users.findByUsername("stf")).thenReturn(Optional.of(user("stf", "ADMIN")));
     when(bookings.findById(1L)).thenReturn(Optional.of(b));
 
     assertThrows(ConflictException.class, () -> service.confirm("stf", 1L));
@@ -218,9 +221,22 @@ class BookingServiceTest {
   void rejectNonPendingThrowsConflict() {
     Booking b = ownedBooking(1L, "stuA");
     b.setStatus(BookingStatus.CONFIRMED);
+    when(users.findByUsername("stf")).thenReturn(Optional.of(user("stf", "ADMIN")));
     when(bookings.findById(1L)).thenReturn(Optional.of(b));
 
     assertThrows(ConflictException.class, () -> service.reject("stf", 1L));
+  }
+
+  @Test
+  void vendorCannotConfirmAnotherVendorsBooking() {
+    Booking b = ownedBooking(1L, "stuA");
+    Equipment item = item(7L, "OSC-001");
+    item.setCreatedBy(adminAsUser(9L, "other"));
+    b.setEquipment(item);
+    when(users.findByUsername("ven")).thenReturn(Optional.of(user("ven", "VENDOR")));
+    when(bookings.findById(1L)).thenReturn(Optional.of(b));
+
+    assertThrows(AccessDeniedException.class, () -> service.confirm("ven", 1L));
   }
 
   private static User user(String username, String... roleNames) {
@@ -230,6 +246,18 @@ class BookingServiceTest {
     u.setPasswordHash("$2a$10$testhashfortests0000000000000000000000000000");
     for (String r : roleNames) {
       u.getRoles().add(new Role(r, r));
+    }
+    return u;
+  }
+
+  private static User adminAsUser(Long id, String username) {
+    User u = user(username, "ADMIN");
+    try {
+      var idField = User.class.getDeclaredField("id");
+      idField.setAccessible(true);
+      idField.set(u, id);
+    } catch (ReflectiveOperationException e) {
+      throw new IllegalStateException(e);
     }
     return u;
   }
@@ -251,7 +279,7 @@ class BookingServiceTest {
 
   private static Booking ownedBooking(Long id, String ownerName) {
     Booking b = new Booking();
-    b.setOwner(user(ownerName, "STUDENT"));
+    b.setOwner(user(ownerName, "USER"));
     b.setEquipment(item(7L, "OSC-001"));
     Instant start = Instant.now().plusSeconds(3600);
     b.setStartTime(start);

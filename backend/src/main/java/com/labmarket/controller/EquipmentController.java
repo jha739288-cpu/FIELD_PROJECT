@@ -28,8 +28,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Equipment catalog. Reads: any authenticated user (STUDENT included).
- * Mutations: LAB_STAFF and ADMIN only.
+ * Equipment catalog. Reads: any authenticated user (USER included).
+ * Mutations: VENDOR and ADMIN only.
  */
 @RestController
 @RequestMapping("/api/v1/equipment")
@@ -45,7 +45,7 @@ public class EquipmentController {
   }
 
   @PostMapping
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
   @Operation(summary = "Register equipment (staff/admin, 201 on success)")
   public ResponseEntity<EquipmentResponse> create(
       @Valid @RequestBody EquipmentCreateRequest request, Authentication authentication) {
@@ -54,13 +54,17 @@ public class EquipmentController {
   }
 
   @GetMapping
-  @Operation(summary = "Search equipment with pagination, status/category filters and free text")
+  @Operation(summary = "Search equipment with pagination, status/category/laboratory filters and free text")
   public ResponseEntity<PagedResponse<EquipmentResponse>> list(
       @RequestParam(required = false) EquipmentStatus status,
       @RequestParam(required = false) String category,
+      @RequestParam(required = false) String laboratory,
       @RequestParam(required = false, name = "q") String query,
-      @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
-    return ResponseEntity.ok(equipment.list(status, category, query, pageable));
+      @RequestParam(required = false, defaultValue = "false") boolean mine,
+      @PageableDefault(size = 20, sort = "createdAt") Pageable pageable,
+      Authentication authentication) {
+    return ResponseEntity.ok(
+        equipment.list(authentication.getName(), status, category, laboratory, query, mine, pageable));
   }
 
   @GetMapping("/{id}")
@@ -70,23 +74,25 @@ public class EquipmentController {
   }
 
   @PutMapping("/{id}")
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
-  @Operation(summary = "Full update of an equipment item (staff/admin; code is immutable)")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
+  @Operation(summary = "Full update of an equipment item (own items for vendors; code is immutable)")
   public ResponseEntity<EquipmentResponse> update(
-      @PathVariable Long id, @Valid @RequestBody EquipmentUpdateRequest request) {
-    return ResponseEntity.ok(equipment.update(id, request));
+      @PathVariable Long id,
+      @Valid @RequestBody EquipmentUpdateRequest request,
+      Authentication authentication) {
+    return ResponseEntity.ok(equipment.update(authentication.getName(), id, request));
   }
 
   @DeleteMapping("/{id}")
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
-  @Operation(summary = "Delete equipment (staff/admin; blocked while in use, 204 on success)")
-  public ResponseEntity<Void> delete(@PathVariable Long id) {
-    equipment.delete(id);
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
+  @Operation(summary = "Delete equipment (own items for vendors; blocked while in use, 204 on success)")
+  public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
+    equipment.delete(authentication.getName(), id);
     return ResponseEntity.noContent().build();
   }
 
   @PostMapping("/{id}/sensor-key")
-  @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
   @Operation(summary = "Provision (or rotate) the device key for one item (staff/admin; raw key shown once)")
   public ResponseEntity<SensorKeyResponse> provisionSensorKey(
       @PathVariable Long id, Authentication authentication) {

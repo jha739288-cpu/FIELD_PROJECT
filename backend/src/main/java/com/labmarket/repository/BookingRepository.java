@@ -137,4 +137,31 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
       @Param("equipmentId") Long equipmentId,
       @Param("status") BookingStatus status,
       Pageable pageable);
+
+  /** Bookings on equipment listed by one vendor (ownership-scoped staff view). */
+  @Query(
+      """
+      SELECT b FROM Booking b
+      WHERE b.equipment.createdBy.id = :ownerId
+        AND (:equipmentId IS NULL OR b.equipment.id = :equipmentId)
+        AND (:status IS NULL OR b.status = :status)
+      """)
+  Page<Booking> searchForOwner(
+      @Param("ownerId") Long ownerId,
+      @Param("equipmentId") Long equipmentId,
+      @Param("status") BookingStatus status,
+      Pageable pageable);
+
+  /** Any booking ever made by one user (admin user-management counts). */
+  long countByOwner_Id(Long ownerId);
+
+  /** Bookings on equipment listed by one vendor. */
+  long countByEquipmentCreatedById(Long ownerId);
+
+  @Query("SELECT b FROM Booking b WHERE b.equipment.createdBy.id = :ownerId")
+  Page<Booking> findByEquipmentOwnerId(@Param("ownerId") Long ownerId, Pageable pageable);
+
+  @Query(
+      "SELECT b.status, COUNT(b) FROM Booking b WHERE b.equipment.createdBy.id = :ownerId GROUP BY b.status")
+  List<Object[]> countByStatusForOwner(@Param("ownerId") Long ownerId);
 }

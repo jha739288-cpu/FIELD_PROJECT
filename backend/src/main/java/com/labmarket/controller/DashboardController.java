@@ -1,11 +1,13 @@
 package com.labmarket.controller;
 
+import com.labmarket.dto.AdminOverviewResponse;
 import com.labmarket.dto.BookingAnalyticsResponse;
 import com.labmarket.dto.EquipmentDashboardResponse;
 import com.labmarket.dto.SensorAnalyticsResponse;
 import com.labmarket.dto.SummaryResponse;
 import com.labmarket.dto.UsageTrendResponse;
 import com.labmarket.dto.UtilizationResponse;
+import com.labmarket.dto.VendorDashboardResponse;
 import com.labmarket.service.DashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +15,7 @@ import java.time.Instant;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,12 +23,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Lab-wide analytics for LAB_STAFF and ADMIN only. Students use
+ * Lab-wide analytics for VENDOR and ADMIN only. Students use
  * {@code /api/v1/dashboard/my-summary} (personal scope).
  */
 @RestController
 @RequestMapping("/api/v1/dashboard")
-@PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+@PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
 @Tag(name = "Dashboard", description = "Analytics computed from live records")
 public class DashboardController {
 
@@ -91,6 +94,19 @@ public class DashboardController {
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
       @RequestParam(required = false) Long equipmentId) {
     return ResponseEntity.ok(dashboard.sensorAnalytics(from, to, equipmentId));
+  }
+
+  @GetMapping("/admin/overview")
+  @PreAuthorize("hasRole('ADMIN')")
+  @Operation(summary = "Platform overview: counts plus recent users/bookings/equipment (admin)")
+  public ResponseEntity<AdminOverviewResponse> adminOverview() {
+    return ResponseEntity.ok(dashboard.adminOverview());
+  }
+
+  @GetMapping("/vendor")
+  @Operation(summary = "Calling vendor's own marketplace numbers")
+  public ResponseEntity<VendorDashboardResponse> vendor(Authentication authentication) {
+    return ResponseEntity.ok(dashboard.vendorSummary(authentication.getName()));
   }
 
   public record ConflictCountResponse(long conflictAttempts) {}

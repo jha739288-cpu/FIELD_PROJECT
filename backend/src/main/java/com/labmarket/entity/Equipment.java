@@ -15,6 +15,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -57,6 +58,24 @@ public class Equipment {
 
   @Column(length = 100)
   private String laboratory;
+
+  @Column(name = "image_url", length = 500)
+  private String imageUrl;
+
+  @Column(length = 2000)
+  private String specifications;
+
+  @Column(name = "price_per_hour", precision = 10, scale = 2)
+  private BigDecimal pricePerHour;
+
+  @Column(nullable = false)
+  private Integer quantity = 1;
+
+  @Column(name = "usage_instructions", length = 1000)
+  private String usageInstructions;
+
+  @Column(name = "safety_info", length = 1000)
+  private String safetyInfo;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
@@ -156,6 +175,54 @@ public class Equipment {
 
   public void setLaboratory(String laboratory) {
     this.laboratory = laboratory;
+  }
+
+  public String getImageUrl() {
+    return imageUrl;
+  }
+
+  public void setImageUrl(String imageUrl) {
+    this.imageUrl = imageUrl;
+  }
+
+  public String getSpecifications() {
+    return specifications;
+  }
+
+  public void setSpecifications(String specifications) {
+    this.specifications = specifications;
+  }
+
+  public BigDecimal getPricePerHour() {
+    return pricePerHour;
+  }
+
+  public void setPricePerHour(BigDecimal pricePerHour) {
+    this.pricePerHour = pricePerHour;
+  }
+
+  public Integer getQuantity() {
+    return quantity;
+  }
+
+  public void setQuantity(Integer quantity) {
+    this.quantity = quantity;
+  }
+
+  public String getUsageInstructions() {
+    return usageInstructions;
+  }
+
+  public void setUsageInstructions(String usageInstructions) {
+    this.usageInstructions = usageInstructions;
+  }
+
+  public String getSafetyInfo() {
+    return safetyInfo;
+  }
+
+  public void setSafetyInfo(String safetyInfo) {
+    this.safetyInfo = safetyInfo;
   }
 
   public EquipmentCondition getCondition() {

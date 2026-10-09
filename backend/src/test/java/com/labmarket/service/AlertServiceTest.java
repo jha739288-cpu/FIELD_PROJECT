@@ -186,14 +186,14 @@ class AlertServiceTest {
   private static User staff() {
     User u = new User();
     u.setUsername("stf");
-    u.getRoles().add(new Role("LAB_STAFF", "x"));
+    u.getRoles().add(new Role("VENDOR", "x"));
     return u;
   }
 
   private static User student() {
     User u = new User();
     u.setUsername("stu");
-    u.getRoles().add(new Role("STUDENT", "x"));
+    u.getRoles().add(new Role("USER", "x"));
     return u;
   }
 }

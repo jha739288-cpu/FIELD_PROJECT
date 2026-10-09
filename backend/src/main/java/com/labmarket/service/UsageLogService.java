@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Usage history.
  *
  * <ul>
- *   <li>Students see only their own rows; LAB_STAFF/ADMIN see everything (scoped by filters).</li>
+ *   <li>Students see only their own rows; VENDOR/ADMIN see everything (scoped by filters).</li>
  *   <li>Single rows: owner, staff or admin — anyone else gets 403.</li>
  *   <li>There is intentionally NO update/delete path: COMPLETED rows are historical.</li>
  *   <li>Staff/admin may record MANUAL historical usage (walk-ins); duration is computed.</li>
@@ -41,7 +41,7 @@ public class UsageLogService {
 
   private static final Logger log = LoggerFactory.getLogger(UsageLogService.class);
 
-  private static final Set<String> STAFF_ROLES = Set.of("LAB_STAFF", "ADMIN");
+  private static final Set<String> STAFF_ROLES = Set.of("VENDOR", "ADMIN");
 
   private final UsageSessionRepository sessions;
   private final EquipmentRepository equipment;

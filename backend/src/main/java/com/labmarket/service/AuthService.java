@@ -56,7 +56,7 @@ public class AuthService {
     this.mapper = mapper;
   }
 
-  /** Public self-registration. Always assigns STUDENT; staff/admin are granted by an ADMIN later. */
+  /** Public self-registration. Assigns USER by default, VENDOR on request; never ADMIN. */
   @Transactional
   public AuthResponse register(RegisterRequest req) {
     // Single generic message: distinct username/email errors would let attackers
@@ -64,19 +64,23 @@ public class AuthService {
     if (users.existsByUsername(req.username()) || users.existsByEmail(req.email())) {
       throw new UserAlreadyExistsException("Username or email is already registered");
     }
-    Role student =
+    String roleName = req.effectiveRole();
+    if (!roleName.equals("USER") && !roleName.equals("VENDOR")) {
+      throw new IllegalArgumentException("Role '" + roleName + "' cannot be self-assigned");
+    }
+    Role role =
         roles
-            .findByName("STUDENT")
-            .orElseThrow(() -> new IllegalStateException("STUDENT role is not seeded"));
+            .findByName(roleName)
+            .orElseThrow(() -> new IllegalStateException(roleName + " role is not seeded"));
     User user = new User();
     user.setUsername(req.username());
     user.setEmail(req.email());
     user.setPasswordHash(encoder.encode(req.password()));
     user.setFullName(req.fullName());
     user.setEnabled(true);
-    user.getRoles().add(student);
+    user.getRoles().add(role);
     User saved = users.save(user);
-    log.info("Registered user '{}'", saved.getUsername());
+    log.info("Registered user '{}' with role {}", saved.getUsername(), roleName);
     return tokenFor(saved);
   }
 

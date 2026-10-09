@@ -23,10 +23,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Alerts are operational: LAB_STAFF and ADMIN only. */
+/** Alerts are operational: VENDOR and ADMIN only. */
 @RestController
 @RequestMapping("/api/v1/alerts")
-@PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+@PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
 @Tag(name = "Alerts", description = "Operational alerts (staff/admin)")
 public class AlertController {
 

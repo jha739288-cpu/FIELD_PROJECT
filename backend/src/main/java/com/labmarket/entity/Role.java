@@ -12,7 +12,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 
 /**
- * Application role (STUDENT, LAB_STAFF, ADMIN).
+ * Application role (USER, VENDOR, ADMIN).
  * Rows are seeded by migration — never created at runtime.
  * The USER_ROLES join table and all auth wiring arrive in Module 1.
  */

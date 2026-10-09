@@ -8,19 +8,20 @@ export const api = axios.create({
   timeout: 10000
 });
 
-// Attach the JWT to every request when present.
+// Attach the JWT to every request when present (persistent or session storage).
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Expired/invalid token -> drop it and send the user back to login.
+// Expired/invalid token -> drop it from both stores and send the user back to login.
 api.interceptors.response.use(
   (res) => res,
   (err: AxiosError<ApiError>) => {
     if (err.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
       window.location.assign('/login');
     }
     return Promise.reject(err);

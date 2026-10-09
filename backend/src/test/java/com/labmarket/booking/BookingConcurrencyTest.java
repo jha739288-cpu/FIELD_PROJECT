@@ -70,11 +70,12 @@ class BookingConcurrencyTest {
   @BeforeEach
   void setUp() {
     clean();
-    Role student = roleRepo.save(new Role("STUDENT", "Student"));
-    Role staff = roleRepo.save(new Role("LAB_STAFF", "Lab staff"));
+    Role admin = roleRepo.save(new Role("ADMIN", "Administrator"));
+    Role student = roleRepo.save(new Role("USER", "Student"));
+    Role staff = roleRepo.save(new Role("VENDOR", "Lab staff"));
     user("raceStuA", student);
     user("raceStuB", student);
-    user("raceStf", staff);
+    user("raceStf", admin);
     Equipment item = new Equipment();
     item.setEquipmentCode("RACE-001");
     item.setName("Race scope");

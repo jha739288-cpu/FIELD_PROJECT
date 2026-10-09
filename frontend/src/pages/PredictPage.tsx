@@ -50,7 +50,7 @@ export default function PredictPage() {
         method
       });
       setForecast(res);
-      if (hasRole('LAB_STAFF', 'ADMIN')) {
+      if (hasRole('VENDOR', 'ADMIN')) {
         const pastEnd = new Date(from.getTime() - 24 * 3_600_000);
         const pastStart = new Date(pastEnd.getTime() - 7 * 24 * 3_600_000);
         try {

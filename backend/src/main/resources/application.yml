@@ -36,6 +36,18 @@ app:
   overdue:
     # Overdue sweep interval. Disabled in tests (scheduler-enabled: false).
     check-interval-ms: ${OVERDUE_CHECK_INTERVAL_MS:300000}
+    scheduler-enabled: true
+  seed:
+    # First-ADMIN bootstrap + synthetic demo dataset. All values come from the
+    # environment (exact names); empty/disabled by default so nothing is seeded
+    # unless the operator opts in.
+    admin-username: ${APP_ADMIN_USERNAME:}
+    admin-email: ${APP_ADMIN_EMAIL:}
+    admin-password: ${APP_ADMIN_PASSWORD:}
+    admin-full-name: ${APP_ADMIN_FULLNAME:Administrator}
+    demo-enabled: ${APP_SEED_DEMO:false}
+    demo-vendor-username: ${APP_SEED_DEMO_VENDOR:demo-vendor}
+    demo-vendor-password: ${APP_SEED_DEMO_PASSWORD:}
     scheduler-enabled: ${OVERDUE_SCHEDULER_ENABLED:true}
   prediction:
     lookback-days: ${PREDICTION_LOOKBACK_DAYS:28}

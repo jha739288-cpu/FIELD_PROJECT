@@ -70,7 +70,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>Blocking statuses: CONFIRMED, CHECKED_IN, OVERDUE. PENDING requests may coexist
  *       until staff confirm one of them — confirmation re-checks.</li>
  *   <li>Only OPERATIONAL, non-retired equipment (not MAINTENANCE / SENSOR_OFFLINE) is bookable.</li>
- *   <li>Visibility: owners see their own bookings; LAB_STAFF / ADMIN see everything.</li>
+ *   <li>Visibility: owners see their own bookings; VENDOR / ADMIN see everything.</li>
  * </ul>
  */
 @Service
@@ -96,8 +96,6 @@ public class BookingService {
   private static final Duration QR_GRACE_AFTER_END = Duration.ofMinutes(15);
 
   private static final SecureRandom RANDOM = new SecureRandom();
-
-  private static final Set<String> STAFF_ROLES = Set.of("LAB_STAFF", "ADMIN");
 
   private final BookingRepository bookings;
   private final EquipmentRepository equipment;
@@ -154,15 +152,17 @@ public class BookingService {
     return mapper.toResponse(saved);
   }
 
-  /** Owner sees own; staff/admin see all (optional equipment/status filters). */
+  /** Owner sees own; ADMIN sees all; VENDOR sees bookings on their own equipment. */
   @Transactional(readOnly = true)
   public PagedResponse<BookingResponse> list(
       String username, Long equipmentId, BookingStatus status, Pageable pageable) {
     User viewer = loadUser(username);
     Page<Booking> page =
-        isStaff(viewer)
+        isAdmin(viewer)
             ? bookings.search(equipmentId, status, pageable)
-            : ownBookings(viewer, status, pageable);
+            : isVendor(viewer)
+                ? bookings.searchForOwner(viewer.getId(), equipmentId, status, pageable)
+                : ownBookings(viewer, status, pageable);
     return toPaged(page);
   }
 
@@ -173,24 +173,24 @@ public class BookingService {
     return toPaged(ownBookings(viewer, status, pageable));
   }
 
-  /** Owner, staff or admin. Anyone else gets 403 (no existence leak beyond that). */
+  /** Owner, ADMIN, or the VENDOR who listed the equipment. Anyone else gets 403. */
   @Transactional(readOnly = true)
   public BookingResponse get(String username, Long id) {
     User viewer = loadUser(username);
     Booking b = findOrThrow(id);
-    if (!isStaff(viewer) && !b.getOwner().getUsername().equals(username)) {
+    if (!isOwner(b, username) && !canManage(viewer, b)) {
       throw new AccessDeniedException("Access denied");
     }
     return mapper.toResponse(b);
   }
 
-  /** Owner (while PENDING/CONFIRMED) or staff/admin. Everything else → 409/403. */
+  /** Owner (while PENDING/CONFIRMED), ADMIN, or the listing VENDOR. Everything else → 409/403. */
   @Transactional
   public BookingResponse cancel(String username, Long id) {
     User viewer = loadUser(username);
     Booking b = findOrThrow(id);
-    boolean owner = b.getOwner().getUsername().equals(username);
-    if (!owner && !isStaff(viewer)) {
+    boolean owner = isOwner(b, username);
+    if (!owner && !canManage(viewer, b)) {
       throw new AccessDeniedException("Access denied");
     }
     if (b.getStatus() != BookingStatus.PENDING && b.getStatus() != BookingStatus.CONFIRMED) {
@@ -202,10 +202,14 @@ public class BookingService {
     return mapper.toResponse(b);
   }
 
-  /** Staff/admin only (see controller). PENDING → CONFIRMED after a fresh overlap check. */
+  /** ADMIN, or the VENDOR who listed the equipment (see controller roles). */
   @Transactional
   public BookingResponse confirm(String username, Long id) {
+    User caller = loadUser(username);
     Booking b = findOrThrow(id);
+    if (!canManage(caller, b)) {
+      throw new AccessDeniedException("Access denied");
+    }
     if (b.getStatus() != BookingStatus.PENDING) {
       throw new ConflictException(
           "Booking " + id + " cannot be confirmed while it is " + b.getStatus());
@@ -217,10 +221,14 @@ public class BookingService {
     return mapper.toResponse(b);
   }
 
-  /** Staff/admin only (see controller). PENDING → REJECTED. */
+  /** ADMIN, or the VENDOR who listed the equipment (see controller roles). */
   @Transactional
   public BookingResponse reject(String username, Long id) {
+    User caller = loadUser(username);
     Booking b = findOrThrow(id);
+    if (!canManage(caller, b)) {
+      throw new AccessDeniedException("Access denied");
+    }
     if (b.getStatus() != BookingStatus.PENDING) {
       throw new ConflictException(
           "Booking " + id + " cannot be rejected while it is " + b.getStatus());
@@ -236,14 +244,14 @@ public class BookingService {
 
   /**
    * Issues a single-use opaque check-in token for a CONFIRMED booking.
-   * Caller must own the booking or be staff/admin. Prior unused tokens for the
-   * booking are invalidated. The raw token is returned once and never stored.
+   * Caller must own the booking, be ADMIN, or be the VENDOR who listed the
+   * equipment. Prior unused tokens for the booking are invalidated.
    */
   @Transactional
   public QrTokenResponse generateQr(String username, Long bookingId) {
     User caller = loadUser(username);
     Booking b = findOrThrow(bookingId);
-    if (!isOwner(b, username) && !isStaff(caller)) {
+    if (!isOwner(b, username) && !canManage(caller, b)) {
       throw new AccessDeniedException("Access denied");
     }
     if (b.getStatus() != BookingStatus.CONFIRMED) {
@@ -356,7 +364,7 @@ public class BookingService {
   public CheckOutResponse checkOut(String username, Long bookingId) {
     User caller = loadUser(username);
     Booking b = findOrThrow(bookingId);
-    if (!isOwner(b, username) && !isStaff(caller)) {
+    if (!isOwner(b, username) && !canManage(caller, b)) {
       throw new AccessDeniedException("Access denied");
     }
     if (b.getStatus() != BookingStatus.CHECKED_IN) {
@@ -441,10 +449,9 @@ public class BookingService {
     requireValidWindow(from, to);
     User viewer = loadUser(username);
     Equipment item = loadEquipment(equipmentId);
-    boolean staff = isStaff(viewer);
     List<BookingSlotResponse> slots =
         bookings.findOverlapping(equipmentId, VISIBLE, from, to).stream()
-            .map(b -> slot(b, username, staff))
+            .map(b -> slot(b, viewer))
             .toList();
     return new EquipmentScheduleResponse(
         item.getId(),
@@ -511,7 +518,6 @@ public class BookingService {
   public CalendarResponse calendar(String username, Instant from, Instant to, Long equipmentId) {
     requireValidWindow(from, to);
     User viewer = loadUser(username);
-    boolean staff = isStaff(viewer);
     List<Equipment> items =
         equipmentId == null ? equipment.findAll() : List.of(loadEquipment(equipmentId));
     List<Booking> found =
@@ -538,7 +544,7 @@ public class BookingService {
       Equipment item = entry.getValue();
       List<BookingSlotResponse> slots =
           byEquipment.getOrDefault(entry.getKey(), List.of()).stream()
-              .map(b -> slot(b, username, staff))
+              .map(b -> slot(b, viewer))
               .toList();
       schedules.add(
           new EquipmentScheduleResponse(
@@ -554,10 +560,13 @@ public class BookingService {
     return new CalendarResponse(from, to, schedules);
   }
 
-  private BookingSlotResponse slot(Booking b, String viewer, boolean staff) {
-    boolean owner = b.getOwner().getUsername().equals(viewer);
-    String purpose = staff || owner ? b.getPurpose() : null;
-    String name = staff || owner ? b.getOwner().getUsername() : null;
+  private BookingSlotResponse slot(Booking b, User viewer) {
+    // Purposes/usernames are visible to the owner, ADMINs, and the VENDOR who
+    // listed the equipment — redacted for everyone else.
+    boolean visible =
+        isOwner(b, viewer.getUsername()) || canManage(viewer, b);
+    String purpose = visible ? b.getPurpose() : null;
+    String name = visible ? b.getOwner().getUsername() : null;
     return new BookingSlotResponse(
         b.getId(), b.getStartTime(), b.getEndTime(), b.getStatus(), purpose, name);
   }
@@ -687,8 +696,26 @@ public class BookingService {
         .orElseThrow(() -> new AccessDeniedException("Access denied"));
   }
 
-  private static boolean isStaff(User user) {
-    return user.getRoles().stream().map(Role::getName).anyMatch(STAFF_ROLES::contains);
+  private static boolean isAdmin(User user) {
+    return user.getRoles().stream().map(Role::getName).anyMatch("ADMIN"::equals);
+  }
+
+  private static boolean isVendor(User user) {
+    return user.getRoles().stream().map(Role::getName).anyMatch("VENDOR"::equals);
+  }
+
+  /**
+   * Management rule shared by confirm/reject/cancel/get/checkout/QR: ADMIN manages
+   * everything; a VENDOR manages bookings on equipment they listed; owners manage
+   * their own bookings (checked separately via {@link #isOwner}).
+   */
+  private static boolean canManage(User user, Booking b) {
+    if (isAdmin(user)) {
+      return true;
+    }
+    return isVendor(user)
+        && b.getEquipment().getCreatedBy() != null
+        && b.getEquipment().getCreatedBy().getId().equals(user.getId());
   }
 
   private Page<Booking> ownBookings(User viewer, BookingStatus status, Pageable pageable) {

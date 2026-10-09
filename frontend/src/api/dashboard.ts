@@ -1,12 +1,14 @@
 import { api } from './client';
 import type {
+  AdminOverview,
   BookingAnalytics,
   EquipmentDashboard,
   MySummary,
   SensorAnalytics,
   Summary,
   UsageTrend,
-  Utilization
+  Utilization,
+  VendorDashboard
 } from './types';
 
 export interface WindowParams {
@@ -68,6 +70,16 @@ export async function getSensorAnalytics(window?: WindowParams): Promise<SensorA
 
 export async function getMySummary(): Promise<MySummary> {
   const { data } = await api.get<MySummary>('/dashboard/my-summary');
+  return data;
+}
+
+export async function getAdminOverview(): Promise<AdminOverview> {
+  const { data } = await api.get<AdminOverview>('/dashboard/admin/overview');
+  return data;
+}
+
+export async function getVendorDashboard(): Promise<VendorDashboard> {
+  const { data } = await api.get<VendorDashboard>('/dashboard/vendor');
   return data;
 }
 

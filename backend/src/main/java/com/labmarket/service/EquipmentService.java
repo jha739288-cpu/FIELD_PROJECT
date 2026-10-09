@@ -7,6 +7,7 @@ import com.labmarket.dto.PagedResponse;
 import com.labmarket.entity.Equipment;
 import com.labmarket.entity.EquipmentStatus;
 import com.labmarket.entity.MaintenanceStatus;
+import com.labmarket.entity.Role;
 import com.labmarket.entity.User;
 import com.labmarket.exception.ConflictException;
 import com.labmarket.exception.ResourceNotFoundException;
@@ -19,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,12 +72,22 @@ public class EquipmentService {
 
   @Transactional(readOnly = true)
   public PagedResponse<EquipmentResponse> list(
-      EquipmentStatus status, String category, String q, Pageable pageable) {
+      String username,
+      EquipmentStatus status,
+      String category,
+      String laboratory,
+      String q,
+      boolean mine,
+      Pageable pageable) {
     // LIKE pattern is built in Java (lower-cased): portable across Oracle/H2
     // and immune to bind-parameter type-inference quirks in concatenations.
     String term = blankToNull(q);
     String pattern = term == null ? null : "%" + term.toLowerCase() + "%";
-    Page<Equipment> page = equipment.search(status, blankToNull(category), pattern, pageable);
+    Page<Equipment> page =
+        mine
+            ? equipment.findByCreatedById(loadUserId(username), pageable)
+            : equipment.search(
+                status, blankToNull(category), blankToNull(laboratory), pattern, pageable);
     return new PagedResponse<>(
         page.getContent().stream().map(mapper::toResponse).toList(),
         page.getNumber(),
@@ -90,17 +102,19 @@ public class EquipmentService {
   }
 
   @Transactional
-  public EquipmentResponse update(Long id, EquipmentUpdateRequest req) {
+  public EquipmentResponse update(String username, Long id, EquipmentUpdateRequest req) {
     Equipment e = findOrThrow(id);
+    requireOwnerOrAdmin(username, e);
     requireConsistentStatus(req.currentStatus(), req.maintenanceStatus());
     mapper.applyUpdate(e, req);
-    log.info("Equipment '{}' updated", e.getEquipmentCode());
+    log.info("Equipment '{}' updated by '{}'", e.getEquipmentCode(), username);
     return mapper.toResponse(e);
   }
 
   @Transactional
-  public void delete(Long id) {
+  public void delete(String username, Long id) {
     Equipment e = findOrThrow(id);
+    requireOwnerOrAdmin(username, e);
     if (DELETE_BLOCKED.contains(e.getCurrentStatus())) {
       throw new ConflictException(
           "Equipment '" + e.getEquipmentCode() + "' cannot be deleted while it is " + e.getCurrentStatus());
@@ -112,13 +126,43 @@ public class EquipmentService {
           "Equipment '" + e.getEquipmentCode() + "' cannot be deleted while bookings reference it");
     }
     equipment.delete(e);
-    log.info("Equipment '{}' deleted", e.getEquipmentCode());
+    log.info("Equipment '{}' deleted by '{}'", e.getEquipmentCode(), username);
+  }
+
+  /**
+   * Ownership rule: ADMIN may touch any item; a VENDOR only items they listed
+   * (created_by); anyone else is forbidden. The controller already restricts
+   * roles — this is the server-side guarantee behind it.
+   */
+  private void requireOwnerOrAdmin(String username, Equipment e) {
+    User caller =
+        users
+            .findByUsername(username)
+            .orElseThrow(() -> new AccessDeniedException("Access denied"));
+    boolean admin = caller.getRoles().stream().map(Role::getName).anyMatch("ADMIN"::equals);
+    if (admin) {
+      return;
+    }
+    boolean owner =
+        caller.getRoles().stream().map(Role::getName).anyMatch("VENDOR"::equals)
+            && e.getCreatedBy() != null
+            && e.getCreatedBy().getId().equals(caller.getId());
+    if (!owner) {
+      throw new AccessDeniedException("Access denied");
+    }
   }
 
   private Equipment findOrThrow(Long id) {
     return equipment
         .findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Equipment with id " + id + " not found"));
+  }
+
+  private Long loadUserId(String username) {
+    return users
+        .findByUsername(username)
+        .orElseThrow(() -> new AccessDeniedException("Access denied"))
+        .getId();
   }
 
   private static void requireConsistentStatus(EquipmentStatus status, MaintenanceStatus maintenance) {

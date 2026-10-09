@@ -46,7 +46,7 @@ public class AlertService {
 
   private static final Logger log = LoggerFactory.getLogger(AlertService.class);
 
-  private static final Set<String> STAFF_ROLES = Set.of("LAB_STAFF", "ADMIN");
+  private static final Set<String> STAFF_ROLES = Set.of("VENDOR", "ADMIN");
 
   private final AlertRepository alerts;
   private final BookingRepository bookings;

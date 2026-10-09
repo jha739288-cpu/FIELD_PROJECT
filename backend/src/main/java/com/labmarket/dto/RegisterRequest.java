@@ -6,8 +6,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * Self-registration payload. Always creates a STUDENT account;
- * LAB_STAFF/ADMIN are granted by an ADMIN later (user management module).
+ * Self-registration payload. Creates a USER account by default; VENDOR may be
+ * requested at registration. ADMIN is never self-assigned (400) — admins are
+ * created via the seed runner or by another ADMIN.
  */
 public record RegisterRequest(
     @NotBlank(message = "username is required")
@@ -21,4 +22,11 @@ public record RegisterRequest(
     @NotBlank(message = "password is required")
         @Size(min = 8, max = 100, message = "password must be 8-100 characters")
         String password,
-    @Size(max = 100, message = "full name must be at most 100 characters") String fullName) {}
+    @Size(max = 100, message = "full name must be at most 100 characters") String fullName,
+    @Pattern(regexp = "^(USER|VENDOR)$", message = "role must be USER or VENDOR") String role) {
+
+  /** Requested role, defaulting to USER when omitted. */
+  public String effectiveRole() {
+    return role == null ? "USER" : role;
+  }
+}

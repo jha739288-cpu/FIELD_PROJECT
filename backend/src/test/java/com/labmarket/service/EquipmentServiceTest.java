@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 import com.labmarket.dto.EquipmentCreateRequest;
 import com.labmarket.dto.EquipmentResponse;
@@ -14,6 +15,7 @@ import com.labmarket.entity.Equipment;
 import com.labmarket.entity.EquipmentCondition;
 import com.labmarket.entity.EquipmentStatus;
 import com.labmarket.entity.MaintenanceStatus;
+import com.labmarket.entity.Role;
 import com.labmarket.entity.User;
 import com.labmarket.exception.ConflictException;
 import com.labmarket.exception.ResourceNotFoundException;
@@ -28,6 +30,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 /** Pure unit tests for catalog domain rules (no Spring context). */
 @ExtendWith(MockitoExtension.class)
@@ -58,6 +61,25 @@ class EquipmentServiceTest {
   }
 
   @Test
+  void createPersistsImageUrl() {
+    when(equipment.existsByEquipmentCode("CAM-001")).thenReturn(false);
+    when(users.findByUsername("stf")).thenReturn(Optional.empty());
+    when(equipment.save(any(Equipment.class))).thenAnswer(i -> i.getArgument(0));
+
+    EquipmentCreateRequest req =
+        new EquipmentCreateRequest(
+            "CAM-001", "Camera", "Optics", null, null, null, "Lab B",
+            "https://cdn.example.com/cam-001.jpg", null, null, null, null, null,
+            null, null, null);
+    EquipmentResponse res = service.create(req, "stf");
+
+    assertEquals("https://cdn.example.com/cam-001.jpg", res.imageUrl());
+    ArgumentCaptor<Equipment> saved = ArgumentCaptor.forClass(Equipment.class);
+    verify(equipment).save(saved.capture());
+    assertEquals("https://cdn.example.com/cam-001.jpg", saved.getValue().getImageUrl());
+  }
+
+  @Test
   void createDuplicateCodeThrowsConflict() {
     when(equipment.existsByEquipmentCode("OSC-001")).thenReturn(true);
 
@@ -85,11 +107,15 @@ class EquipmentServiceTest {
     Equipment existing = existing(1L, "OSC-001");
     when(equipment.findById(1L)).thenReturn(Optional.of(existing));
 
+    when(users.findByUsername("adm")).thenReturn(Optional.of(admin("adm")));
+
     EquipmentResponse res =
         service.update(
+            "adm",
             1L,
             new EquipmentUpdateRequest(
-                "New name", "Physics", null, null, null, "Lab A",
+                "New name", "Physics", null, null, null, "Lab A", null, null, null, null,
+                null, null,
                 EquipmentCondition.FAIR, EquipmentStatus.MAINTENANCE, MaintenanceStatus.IN_MAINTENANCE));
 
     assertEquals("New name", res.name());
@@ -98,12 +124,53 @@ class EquipmentServiceTest {
   }
 
   @Test
+  void vendorCanUpdateOwnEquipment() {
+    Equipment existing = existing(1L, "OSC-001");
+    User vendor = vendor(7L, "ven");
+    existing.setCreatedBy(vendor);
+    when(equipment.findById(1L)).thenReturn(Optional.of(existing));
+    when(users.findByUsername("ven")).thenReturn(Optional.of(vendor));
+
+    EquipmentResponse res =
+        service.update(
+            "ven",
+            1L,
+            new EquipmentUpdateRequest(
+                "New name", "Physics", null, null, null, "Lab A", null, null, null, null,
+                null, null,
+                EquipmentCondition.GOOD, EquipmentStatus.AVAILABLE, MaintenanceStatus.OPERATIONAL));
+
+    assertEquals("New name", res.name());
+  }
+
+  @Test
+  void vendorCannotUpdateAnotherVendorsEquipment() {
+    Equipment existing = existing(1L, "OSC-001");
+    existing.setCreatedBy(vendor(9L, "other"));
+    when(equipment.findById(1L)).thenReturn(Optional.of(existing));
+    when(users.findByUsername("ven")).thenReturn(Optional.of(vendor(7L, "ven")));
+
+    assertThrows(
+        AccessDeniedException.class,
+        () ->
+            service.update(
+                "ven",
+                1L,
+                new EquipmentUpdateRequest(
+                    "New name", "Physics", null, null, null, "Lab A", null, null, null, null,
+                    null, null,
+                    EquipmentCondition.GOOD, EquipmentStatus.AVAILABLE,
+                    MaintenanceStatus.OPERATIONAL)));
+  }
+
+  @Test
   void deleteBlockedWhileInUse() {
     Equipment existing = existing(1L, "OSC-001");
     existing.setCurrentStatus(EquipmentStatus.IN_USE);
     when(equipment.findById(1L)).thenReturn(Optional.of(existing));
+    when(users.findByUsername("adm")).thenReturn(Optional.of(admin("adm")));
 
-    assertThrows(ConflictException.class, () -> service.delete(1L));
+    assertThrows(ConflictException.class, () -> service.delete("adm", 1L));
     verify(equipment, never()).delete(any());
   }
 
@@ -111,9 +178,21 @@ class EquipmentServiceTest {
   void deleteWithBookingsThrowsConflict() {
     Equipment existing = existing(1L, "OSC-001");
     when(equipment.findById(1L)).thenReturn(Optional.of(existing));
+    when(users.findByUsername("adm")).thenReturn(Optional.of(admin("adm")));
     when(bookings.existsByEquipmentId(1L)).thenReturn(true);
 
-    assertThrows(ConflictException.class, () -> service.delete(1L));
+    assertThrows(ConflictException.class, () -> service.delete("adm", 1L));
+    verify(equipment, never()).delete(any());
+  }
+
+  @Test
+  void vendorCannotDeleteAnotherVendorsEquipment() {
+    Equipment existing = existing(1L, "OSC-001");
+    existing.setCreatedBy(vendor(9L, "other"));
+    when(equipment.findById(1L)).thenReturn(Optional.of(existing));
+    when(users.findByUsername("ven")).thenReturn(Optional.of(vendor(7L, "ven")));
+
+    assertThrows(AccessDeniedException.class, () -> service.delete("ven", 1L));
     verify(equipment, never()).delete(any());
   }
 
@@ -121,8 +200,9 @@ class EquipmentServiceTest {
   void deleteAvailableSucceeds() {
     Equipment existing = existing(1L, "OSC-001");
     when(equipment.findById(1L)).thenReturn(Optional.of(existing));
+    when(users.findByUsername("adm")).thenReturn(Optional.of(admin("adm")));
 
-    service.delete(1L);
+    service.delete("adm", 1L);
 
     verify(equipment).delete(existing);
   }
@@ -130,8 +210,31 @@ class EquipmentServiceTest {
   private static EquipmentCreateRequest create(
       String code, EquipmentStatus status, MaintenanceStatus maintenance) {
     return new EquipmentCreateRequest(
-        code, "Oscilloscope", "Electronics", null, "Acme", "X-100", "Lab A",
-        null, status, maintenance);
+        code, "Oscilloscope", "Electronics", null, "Acme", "X-100", "Lab A", null,
+        null, null, null, null, null, null, status, maintenance);
+  }
+
+  private static User admin(String username) {
+    return withRole(1L, username, "ADMIN");
+  }
+
+  private static User vendor(Long id, String username) {
+    return withRole(id, username, "VENDOR");
+  }
+
+  private static User withRole(Long id, String username, String roleName) {
+    User u = new User();
+    u.setUsername(username);
+    u.setEmail(username + "@example.com");
+    u.getRoles().add(new Role(roleName, roleName));
+    try {
+      var idField = User.class.getDeclaredField("id");
+      idField.setAccessible(true);
+      idField.set(u, id);
+    } catch (ReflectiveOperationException e) {
+      throw new IllegalStateException(e);
+    }
+    return u;
   }
 
   private static Equipment existing(Long id, String code) {

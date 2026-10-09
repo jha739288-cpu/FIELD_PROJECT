@@ -30,7 +30,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *   <li>Public: /api/v1/health, /api/v1/auth/register, /api/v1/auth/login, actuator health/info, swagger.</li>
  *   <li>Everything else: valid Bearer JWT required (401 without, 403 when the role is insufficient).</li>
  *   <li>Fine-grained role rules additionally use {@code @PreAuthorize} on controllers
- *       (STUDENT / LAB_STAFF / ADMIN) as modules land.</li>
+ *       (USER / VENDOR / ADMIN) as modules land.</li>
  * </ul>
  */
 @Configuration

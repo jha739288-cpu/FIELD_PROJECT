@@ -8,9 +8,9 @@
 
 MERGE INTO roles r
 USING (
-  SELECT 'STUDENT'   AS name, 'Student — book and use equipment'      AS description FROM DUAL UNION ALL
-  SELECT 'LAB_STAFF' AS name, 'Lab staff — manage equipment/bookings' AS description FROM DUAL UNION ALL
-  SELECT 'ADMIN'     AS name, 'Administrator — full access'           AS description FROM DUAL
+  SELECT 'USER'   AS name, 'User — book and use equipment'           AS description FROM DUAL UNION ALL
+  SELECT 'VENDOR' AS name, 'Vendor — list and manage own equipment'  AS description FROM DUAL UNION ALL
+  SELECT 'ADMIN'  AS name, 'Administrator — full access'            AS description FROM DUAL
 ) s
 ON (r.name = s.name)
 WHEN NOT MATCHED THEN

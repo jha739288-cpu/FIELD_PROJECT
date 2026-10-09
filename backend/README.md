@@ -66,20 +66,20 @@ mvn spring-boot:run
 
 ## Auth (Module 1)
 
-- `POST /api/v1/auth/register` → 201 + JWT (always creates STUDENT; staff/admin granted later). Duplicate username/email → 409, bad input → 400.
+- `POST /api/v1/auth/register` → 201 + JWT (creates USER by default, VENDOR on request; ADMIN never self-assignable → 400). Duplicate username/email → 409, bad input → 400.
 - `POST /api/v1/auth/login` → 200 + JWT. Wrong credentials or disabled account → 401.
 - `GET /api/v1/auth/me` → own profile (Bearer JWT). No token → 401, insufficient role on `@PreAuthorize` endpoints → 403.
 - Passwords: BCrypt-hashed before persistence; responses never contain hashes. `JWT_SECRET` env in prod (min 32 chars).
 
 ## Equipment catalog
 
-- `POST /api/v1/equipment` → 201 (LAB_STAFF/ADMIN). `GET /api/v1/equipment` (any authenticated user; `page/size/sort`, `status`, `category`, `q` params) → paged envelope `{content, page, size, totalElements, totalPages}`.
+- `POST /api/v1/equipment` → 201 (VENDOR/ADMIN). `GET /api/v1/equipment` (any authenticated user; `page/size/sort`, `status`/`category`/`laboratory` filters, free text, `mine=true` for own listings) → paged envelope `{content, page, size, totalElements, totalPages}`. Vendors may mutate only items they listed (`created_by`); ADMIN unrestricted.
 - `GET /api/v1/equipment/{id}` → 200 / 404. `PUT /api/v1/equipment/{id}` → 200 (code immutable). `DELETE` → 204, blocked with 409 while `IN_USE`/`RESERVED`/`OVERDUE`.
 - Rule: `AVAILABLE` requires `OPERATIONAL` maintenance status. Bad enum filter → 400.
 
 ## Booking
 
-- `POST /api/v1/bookings` → 201 PENDING (any authenticated user). `GET /api/v1/bookings` (own for students; all + `equipmentId`/`status` filters for staff/admin), `GET /api/v1/bookings/my`, `GET /api/v1/bookings/{id}` (owner/staff/admin).
+- `POST /api/v1/bookings` → 201 PENDING (any authenticated user). `GET /api/v1/bookings` (own for users; own-equipment for vendors; all + `equipmentId`/`status` filters for admins), `GET /api/v1/bookings/my`, `GET /api/v1/bookings/{id}` (owner/vendor-of-item/admin).
 - `PUT /api/v1/bookings/{id}/cancel` (owner while PENDING/CONFIRMED, or staff/admin), `/confirm` + `/reject` (staff/admin).
 - Overlap rule: same equipment must not have overlapping CONFIRMED/CHECKED_IN/OVERDUE bookings (half-open ranges; back-to-back allowed). Enforced by equipment row lock (`FOR UPDATE`) + active-booking check → 409 with a clear message. Unbookable equipment, past starts, end ≤ start → 400/409.
 
@@ -102,7 +102,7 @@ mvn spring-boot:run
 
 `usage_sessions` is the single usage store (`source`: QR_CHECKIN/SENSOR/MANUAL; `status`: ACTIVE/COMPLETED; MANUAL rows have no booking).
 
-- `GET /api/v1/usage` — own rows for students; all + `equipmentId`/`userId`/`status`/`source`/`laboratory`/`from`/`to` filters for staff/admin.
+- `GET /api/v1/usage` — own rows for users; all + `equipmentId`/`userId`/`status`/`source`/`laboratory`/`from`/`to` filters for vendors/admins.
 - `GET /api/v1/usage/my`, `GET /api/v1/usage/{id}` (owner/staff/admin).
 - `POST /api/v1/usage` → 201 staff/admin MANUAL record (historical only: end ≤ now; duration computed; born COMPLETED).
 - No update/delete routes — COMPLETED rows are immutable (wrong methods → 405).
@@ -122,7 +122,21 @@ mvn spring-boot:run
 - Live CONFIRMED/CHECKED_IN bookings past their end → OVERDUE; equipment follows (IN_USE/RESERVED/AVAILABLE → OVERDUE; staff/sensor states untouched); exactly one OPEN alert + one `OVERDUE_DETECTED` audit per booking — reruns are no-ops.
 - `GET /api/v1/alerts` (type/status filters), `GET /api/v1/alerts/overdue` (open overdue), `PUT /api/v1/alerts/{id}/resolve` (staff/admin, optional note) — resolution closes open sessions (COMPLETED) or cancels never-used bookings, frees the equipment, writes `ALERT_RESOLVED`.
 
-## Dashboard & analytics (staff/admin; students get `/my-summary`)
+## User roles, equipment marketplace & admin
+
+- Roles are `ADMIN` / `USER` / `VENDOR` (renamed from STUDENT/LAB_STAFF in V13;
+  existing memberships preserved). Register with `role: USER` (default) or
+  `VENDOR`; ADMIN is never self-assignable.
+- Equipment carries marketplace fields (`specifications`, `price_per_hour`,
+  `quantity`, `usage_instructions`, `safety_info`, `image_url`) plus
+  `created_by` ownership: vendors mutate only their own items, admins anything.
+- Account admin: `GET /api/v1/users` (search/role/status), `GET /{id}`,
+  `PUT /{id}/status`, `PUT /{id}/roles` (never your own), `GET /users/vendors`.
+- Analytics: `GET /api/v1/dashboard/admin/overview` (admin), `GET
+  /api/v1/dashboard/vendor` (own marketplace numbers).
+- Seeds (env-gated, dev/demo only): `APP_ADMIN_USERNAME`/`APP_ADMIN_PASSWORD`
+  for the first admin; `APP_SEED_DEMO=true` (+ `APP_SEED_DEMO_PASSWORD`) for a
+  sample vendor + 10 instruments.
 
 - `GET /api/v1/dashboard/summary` — fleet snapshot + trailing-30-day activity + utilization % + conflict attempts.
 - `GET /api/v1/dashboard/utilization?from&to[&equipmentId]` — merged per-item usage over capacity (non-operational items excluded, still listed).

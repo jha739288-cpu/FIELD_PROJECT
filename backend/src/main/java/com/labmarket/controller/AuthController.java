@@ -32,7 +32,7 @@ public class AuthController {
 
   @PostMapping("/register")
   @SecurityRequirements // public: no bearer token needed
-  @Operation(summary = "Register a new STUDENT account (201 on success, 409 if taken)")
+  @Operation(summary = "Register a new USER account (201 on success, 409 if taken)")
   public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED).body(auth.register(request));
   }

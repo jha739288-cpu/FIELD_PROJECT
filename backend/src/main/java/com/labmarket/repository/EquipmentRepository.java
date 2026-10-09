@@ -37,16 +37,25 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
       SELECT e FROM Equipment e
       WHERE (:status IS NULL OR e.currentStatus = :status)
         AND (:category IS NULL OR e.category = :category)
+        AND (:laboratory IS NULL OR e.laboratory = :laboratory)
         AND (:pattern IS NULL
              OR LOWER(e.name) LIKE :pattern ESCAPE '|'
              OR LOWER(e.equipmentCode) LIKE :pattern ESCAPE '|'
              OR LOWER(e.description) LIKE :pattern ESCAPE '|'
              OR LOWER(e.manufacturer) LIKE :pattern ESCAPE '|'
-             OR LOWER(e.model) LIKE :pattern ESCAPE '|')
+             OR LOWER(e.model) LIKE :pattern ESCAPE '|'
+             OR LOWER(e.category) LIKE :pattern ESCAPE '|'
+             OR LOWER(e.laboratory) LIKE :pattern ESCAPE '|')
       """)
   Page<Equipment> search(
       @Param("status") EquipmentStatus status,
       @Param("category") String category,
+      @Param("laboratory") String laboratory,
       @Param("pattern") String pattern,
       Pageable pageable);
+
+  /** Items listed by one vendor (their marketplace inventory). */
+  Page<Equipment> findByCreatedById(Long ownerId, Pageable pageable);
+
+  long countByCreatedById(Long ownerId);
 }

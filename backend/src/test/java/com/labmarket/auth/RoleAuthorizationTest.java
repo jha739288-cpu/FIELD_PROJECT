@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Proves role-based authorization end to end: STUDENT vs LAB_STAFF vs ADMIN
+ * Proves role-based authorization end to end: USER vs VENDOR vs ADMIN
  * against {@code @PreAuthorize} rules, plus the 401/403 split.
  *
  * <p>The probe controller stands in for the equipment/booking controllers that
@@ -61,7 +61,7 @@ class RoleAuthorizationTest {
     }
 
     @GetMapping("/staff")
-    @PreAuthorize("hasAnyRole('LAB_STAFF', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('VENDOR', 'ADMIN')")
     public Map<String, String> staff() {
       return Map.of("area", "staff");
     }
@@ -79,8 +79,8 @@ class RoleAuthorizationTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    Role student = roles.save(new Role("STUDENT", "Student"));
-    Role staff = roles.save(new Role("LAB_STAFF", "Lab staff"));
+    Role student = roles.save(new Role("USER", "Student"));
+    Role staff = roles.save(new Role("VENDOR", "Lab staff"));
     Role admin = roles.save(new Role("ADMIN", "Administrator"));
 
     createUser("stu", "stu@example.com", "password123", student);

@@ -40,9 +40,9 @@ class AuthIntegrationTest {
 
   @BeforeEach
   void seedRoles() {
-    if (roles.findByName("STUDENT").isEmpty()) {
-      roles.save(new Role("STUDENT", "Student"));
-      roles.save(new Role("LAB_STAFF", "Lab staff"));
+    if (roles.findByName("USER").isEmpty()) {
+      roles.save(new Role("USER", "Student"));
+      roles.save(new Role("VENDOR", "Lab staff"));
       roles.save(new Role("ADMIN", "Administrator"));
     }
   }
@@ -57,7 +57,7 @@ class AuthIntegrationTest {
         .andExpect(jsonPath("$.token", notNullValue()))
         .andExpect(jsonPath("$.tokenType").value("Bearer"))
         .andExpect(jsonPath("$.username").value("sara"))
-        .andExpect(jsonPath("$.roles", contains("STUDENT")))
+        .andExpect(jsonPath("$.roles", contains("USER")))
         .andExpect(content().string(not(containsString("password"))))
         .andExpect(content().string(not(containsString("$2a$"))));
   }
@@ -115,7 +115,7 @@ class AuthIntegrationTest {
                 .content(json.writeValueAsString(Map.of("username", "sara", "password", "password123"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.token", notNullValue()))
-        .andExpect(jsonPath("$.roles", contains("STUDENT")));
+        .andExpect(jsonPath("$.roles", contains("USER")));
   }
 
   @Test
@@ -164,7 +164,7 @@ class AuthIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.username").value("sara"))
         .andExpect(jsonPath("$.email").value("sara@example.com"))
-        .andExpect(jsonPath("$.roles", contains("STUDENT")))
+        .andExpect(jsonPath("$.roles", contains("USER")))
         .andExpect(jsonPath("$.passwordHash").doesNotExist())
         .andExpect(content().string(not(containsString("$2a$"))));
   }
